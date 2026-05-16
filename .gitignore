@@ -1,0 +1,25 @@
+# Root
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local
+.idea/
+.vscode/
+
+# Backend
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.venv/
+backend/venv/
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# DB dumps
+*.sql.gz
