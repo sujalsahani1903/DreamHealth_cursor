@@ -22,7 +22,9 @@ Order: **MySQL (Railway) → API (Vercel) → frontend (Render)**. Frontend buil
 - Env: `DATABASE_URL`, `SECRET_KEY`, `JWT_SECRET_KEY`, `FLASK_ENV=production`, Stripe keys, `ALLOW_PUBLIC_ADMIN=false`
 - `DATABASE_URL` must reach MySQL — `mysql://...` from Railway is OK (app rewrites to `mysql+pymysql`). URL-encode `@` in passwords as `%40`.
 - Set `FRONTEND_URL` after step 3
-- Test: `/health`
+- Test: `https://YOUR-ACTUAL-PROJECT.vercel.app/health` (not the placeholder `your-api.vercel.app` from docs)
+- Vercel project → **Settings → General** → confirm **Root Directory** = `backend`
+- If routes 404: redeploy after `api/index.py` + `vercel.json` are pushed; enable legacy builds if prompted
 - Stripe webhook: `https://YOUR-API.vercel.app/api/payment/webhook` → `checkout.session.completed`
 
 **Caveat:** serverless = no persistent disk for admin image uploads. COD + login usually still work.
@@ -36,7 +38,16 @@ Order: **MySQL (Railway) → API (Vercel) → frontend (Render)**. Frontend buil
 | Publish | `dist` |
 | Env | `VITE_API_URL=https://your-api.vercel.app` |
 
-SPA rewrite: `/*` → `/index.html` if deep links 404.
+**Render settings (important):**
+- Service type: **Static Site** (not Web Service)
+- Root directory: `frontend`
+- Build: `npm ci && npm run build`
+- Publish directory: `dist` (not `frontend/dist` if root is already `frontend`)
+
+**If you see 404 on `/assets/*.js` or “Failed to fetch dynamically imported module”:**
+1. Render → your static site → **Manual Deploy** → check **Clear build cache**
+2. After deploy, open site in **incognito** (old `index-*.js` in cache pointed at deleted chunks)
+3. In browser DevTools → Network, click a 404 `.js` URL — if the response is HTML, the SPA rewrite is wrong; if true 404, the `dist/assets` folder was not fully published (re-check publish path)
 
 ## 4. Wire CORS
 
