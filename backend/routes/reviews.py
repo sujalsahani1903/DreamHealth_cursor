@@ -33,8 +33,14 @@ def add_review():
         return jsonify({"message": "product_id, order_id, rating 1-5, feedback required"}), 400
 
     order = Order.query.filter_by(id=oid, user_id=uid).first()
-    if not order or order.payment_status != "paid":
+    if not order:
         return jsonify({"message": "Invalid order"}), 400
+    if order.order_status == "cancelled":
+        return jsonify({"message": "Cannot review a cancelled order"}), 400
+    if order.payment_status != "paid" and order.payment_method != "cod":
+        return jsonify({"message": "Order must be placed before reviewing"}), 400
+    if order.payment_method == "cod" and order.order_status == "pending":
+        return jsonify({"message": "Order not confirmed yet"}), 400
 
     purchased = OrderItem.query.filter(and_(OrderItem.order_id == oid, OrderItem.product_id == pid)).first()
     if not purchased:

@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import toast from "react-hot-toast";
 import { api } from "../services/api";
 import AdminInventoryPanel from "../components/admin/AdminInventoryPanel";
+import AdminOrdersPanel from "../components/admin/AdminOrdersPanel";
 import AdminProductPanel from "../components/admin/AdminProductPanel";
 
 export default function Admin() {
@@ -147,39 +148,7 @@ export default function Admin() {
 
       {tab === "inventory" && <AdminInventoryPanel onStockChange={load} />}
 
-      {tab === "orders" && (
-        <div className="mt-8 space-y-3">
-          {orders.map((o) => (
-            <div key={o.id} className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4 text-sm">
-              <div>
-                <div className="font-bold">#{o.id}</div>
-                <div className="text-xs text-slate-500">{o.user?.email}</div>
-              </div>
-              <div className="text-xs">
-                {o.order_status} · {o.payment_status}
-              </div>
-              <div className="font-bold">₹{o.total_amount}</div>
-              <div className="flex flex-wrap gap-2">
-                {["processing", "shipped", "delivered", "cancelled"].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className="rounded-full border border-slate-200 px-3 py-1 text-xs dark:border-slate-600"
-                    onClick={async () => {
-                      await api.put(`/api/admin/orders/${o.id}/status`, { order_status: s });
-                      toast.success("Order status updated");
-                      const r = await api.get("/api/admin/orders");
-                      setOrders(r.data);
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {tab === "orders" && <AdminOrdersPanel />}
 
       {tab === "feedbacks" && (
         <div className="mt-8 space-y-3">

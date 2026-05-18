@@ -18,8 +18,13 @@ export default function Register() {
   const submit = async (e) => {
     e.preventDefault();
     try {
-      await api.post("/api/auth/signup", form);
-      toast.success("Account created — verify OTP");
+      const { data } = await api.post("/api/auth/signup", form);
+      const msg = data?.message || "Check your email for the verification code";
+      if (msg.toLowerCase().includes("email failed")) {
+        toast.error(msg);
+      } else {
+        toast.success(msg);
+      }
       navigate(`/verify?email=${encodeURIComponent(form.email)}&purpose=signup`);
     } catch (err) {
       toast.error(err.response?.data?.message || "Signup failed");

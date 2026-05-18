@@ -1,25 +1,44 @@
-# Root
+# OS & editors
 .DS_Store
 Thumbs.db
 *.log
-.env
-.env.local
 .idea/
 .vscode/
+.cursor/
 
-# Backend
-backend/__pycache__/
-backend/**/__pycache__/
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 backend/.venv/
 backend/venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Backend uploads (keep folder, ignore user files)
 backend/uploads/*
 !backend/uploads/.gitkeep
 
-# Frontend
+# Node / frontend
 frontend/node_modules/
 frontend/dist/
-frontend/.env
-frontend/.env.local
+frontend/.vite/
+coverage/
+*.tsbuildinfo
 
-# DB dumps
+# DB dumps & local backups
 *.sql.gz
+*.dump

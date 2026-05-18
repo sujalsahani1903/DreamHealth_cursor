@@ -1,17 +1,17 @@
 import os
 from datetime import timedelta
+
 from dotenv import load_dotenv
 
-# ADD THIS LINE: It forces Python to read your .env file right now
 load_dotenv()
+
 
 class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change")
     SQLALCHEMY_DATABASE_URI = os.getenv(
-       "DATABASE_URL",
-         "mysql+pymysql://root:Sul%40mysql@127.0.0.1:3306/dream_health_foods",
+        "DATABASE_URL",
+        "mysql+pymysql://root:password@127.0.0.1:3306/dream_health_foods",
     )
-    #SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:Sujal%40mysql@127.0.0.1/mydatabase"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
 
@@ -32,6 +32,7 @@ class BaseConfig:
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "noreply@dreamhealthfoods.com")
 
     RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+    EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "auto")
     STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 

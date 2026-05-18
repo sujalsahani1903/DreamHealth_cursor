@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { SkeletonCard } from "../components/Skeletons";
+import { formatProductPrice } from "../utils/productPrice";
 
 export default function Home() {
   const [featured, setFeatured] = useState([]);
@@ -82,7 +83,7 @@ export default function Home() {
                     <img src={p.image} alt="" className="h-40 w-full object-cover" />
                     <div className="p-4">
                       <div className="font-semibold text-slate-900 dark:text-slate-100">{p.name}</div>
-                      <div className="mt-1 text-sm text-slate-500">₹{p.selling_price}</div>
+                      <div className="mt-1 text-sm text-slate-500">{formatProductPrice(p)}</div>
                     </div>
                   </Link>
                 </motion.div>

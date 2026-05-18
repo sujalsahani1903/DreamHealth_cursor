@@ -6,7 +6,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from extensions import db
 from models import Order, User
-from routes.orders import fulfill_paid_order
+from routes.orders import fulfill_order, fulfill_paid_order
 
 bp = Blueprint("payment", __name__, url_prefix="/api/payment")
 
@@ -56,7 +56,58 @@ def create_checkout_session():
     )
     order.stripe_session_id = session.id
     db.session.commit()
+    order.payment_method = "stripe"
+    db.session.commit()
     return jsonify({"url": session.url, "session_id": session.id}), 200
+
+
+@bp.post("/cod")
+@jwt_required()
+def confirm_cod():
+    """Cash on delivery — place order without online payment."""
+    uid = int(get_jwt_identity())
+    data = request.get_json() or {}
+    order_id = int(data.get("order_id") or 0)
+    order = Order.query.filter_by(id=order_id, user_id=uid).first()
+    if not order:
+        return jsonify({"message": "Order not found"}), 404
+    if order.payment_status == "paid":
+        return jsonify({"message": "Order already paid"}), 400
+    if order.order_status not in ("pending",):
+        return jsonify({"message": "Order cannot be confirmed"}), 400
+
+    fulfill_order(order_id, payment_method="cod", mark_paid=False)
+    return jsonify(
+        {
+            "message": "Order placed with Cash on Delivery",
+            "order_id": order_id,
+            "payment_method": "cod",
+            "payment_status": "pending",
+        }
+    ), 200
+
+
+@bp.get("/methods")
+def payment_methods():
+    """Available payment options for checkout."""
+    stripe_ok = bool(current_app.config.get("STRIPE_SECRET_KEY"))
+    methods = [
+        {
+            "id": "cod",
+            "label": "Cash on Delivery (COD)",
+            "description": "Pay with cash when your order is delivered",
+        },
+    ]
+    if stripe_ok:
+        methods.insert(
+            0,
+            {
+                "id": "stripe",
+                "label": "Pay online",
+                "description": "Card, UPI & more via secure Stripe checkout",
+            },
+        )
+    return jsonify(methods), 200
 
 
 @bp.post("/webhook")

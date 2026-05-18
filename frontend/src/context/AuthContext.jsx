@@ -1,49 +1,107 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../services/api";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { api, clearAuthStorage, refreshAccessToken } from "../services/api";
 
 const AuthContext = createContext(null);
 
+function readCachedUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "null");
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState(readCachedUser);
   const [loading, setLoading] = useState(true);
-  /** Bumps when tokens change so stale /api/auth/profile responses cannot clear a fresh session. */
   const authEpoch = useRef(0);
 
-  useEffect(() => {
+  const clearSession = useCallback(() => {
+    authEpoch.current += 1;
+    clearAuthStorage();
+    setUser(null);
+    setLoading(false);
+  }, []);
+
+  const bootstrap = useCallback(async () => {
     const token = localStorage.getItem("access_token");
-    if (!token) {
+    const refresh = localStorage.getItem("refresh_token");
+    if (!token && !refresh) {
+      setUser(null);
       setLoading(false);
       return;
     }
+
     const epoch = authEpoch.current;
-    let cancelled = false;
-    api
-      .get("/api/auth/profile")
-      .then((r) => {
-        if (cancelled || epoch !== authEpoch.current) return;
-        setUser(r.data);
-        localStorage.setItem("user", JSON.stringify(r.data));
-      })
-      .catch(() => {
-        if (cancelled || epoch !== authEpoch.current) return;
-        setUser(null);
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("user");
-      })
-      .finally(() => {
-        if (!cancelled && epoch === authEpoch.current) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
+
+    const fetchProfile = async () => {
+      const { data } = await api.get("/api/auth/profile");
+      return data;
     };
+
+    try {
+      let profile = await fetchProfile();
+      if (epoch !== authEpoch.current) return;
+      setUser(profile);
+      localStorage.setItem("user", JSON.stringify(profile));
+    } catch (err) {
+      if (epoch !== authEpoch.current) return;
+
+      const status = err.response?.status;
+
+      if (status === 401 && refresh) {
+        try {
+          await refreshAccessToken();
+          if (epoch !== authEpoch.current) return;
+          const profile = await fetchProfile();
+          if (epoch !== authEpoch.current) return;
+          setUser(profile);
+          localStorage.setItem("user", JSON.stringify(profile));
+          setLoading(false);
+          return;
+        } catch {
+          clearSession();
+          return;
+        }
+      }
+
+      if (status === 401) {
+        clearSession();
+        return;
+      }
+
+      // Network / server errors: keep cached user so Stripe return does not log out
+      const cached = readCachedUser();
+      if (cached) setUser(cached);
+    } finally {
+      if (epoch === authEpoch.current) setLoading(false);
+    }
+  }, [clearSession]);
+
+  useEffect(() => {
+    bootstrap();
+  }, [bootstrap]);
+
+  useEffect(() => {
+    const onCleared = () => setUser(null);
+    window.addEventListener("auth:session-cleared", onCleared);
+    return () => window.removeEventListener("auth:session-cleared", onCleared);
   }, []);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!localStorage.getItem("refresh_token")) return;
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        refreshAccessToken()
+          .then(() => bootstrap())
+          .catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [bootstrap]);
 
   const loginWithTokens = (access, refresh, u) => {
     authEpoch.current += 1;
@@ -55,17 +113,12 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    authEpoch.current += 1;
     try {
       await api.post("/api/auth/logout");
     } catch {
       /* ignore */
     }
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("user");
-    setUser(null);
-    setLoading(false);
+    clearSession();
   };
 
   const value = useMemo(
@@ -75,9 +128,10 @@ export function AuthProvider({ children }) {
       setUser,
       loginWithTokens,
       logout,
+      refreshSession: bootstrap,
       isAdmin: user?.role === "admin",
     }),
-    [user, loading]
+    [user, loading, bootstrap, clearSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

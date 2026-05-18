@@ -13,6 +13,7 @@ USE dream_health_foods;
 DROP TABLE IF EXISTS inventory_logs;
 DROP TABLE IF EXISTS stock_alerts;
 DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS product_variants;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS cart;
@@ -104,16 +105,33 @@ CREATE TABLE products (
   CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE product_variants (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  product_id INT UNSIGNED NOT NULL,
+  label VARCHAR(50) NOT NULL,
+  weight_grams INT UNSIGNED NULL,
+  selling_price DECIMAL(12,2) NOT NULL,
+  cost_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  stock INT NOT NULL DEFAULT 0,
+  is_default TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_variants_product (product_id),
+  CONSTRAINT fk_variants_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE cart (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
   product_id INT UNSIGNED NOT NULL,
+  variant_id INT UNSIGNED NOT NULL,
   quantity INT UNSIGNED NOT NULL DEFAULT 1,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_cart_user_product (user_id, product_id),
+  UNIQUE KEY uq_cart_user_variant (user_id, variant_id),
   KEY idx_cart_user (user_id),
   CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-  CONSTRAINT fk_cart_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+  CONSTRAINT fk_cart_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE,
+  CONSTRAINT fk_cart_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE wishlists (
@@ -149,8 +167,11 @@ CREATE TABLE order_items (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   order_id INT UNSIGNED NOT NULL,
   product_id INT UNSIGNED NOT NULL,
+  variant_id INT UNSIGNED NULL,
+  variant_label VARCHAR(50) NULL,
   quantity INT UNSIGNED NOT NULL,
   price DECIMAL(12,2) NOT NULL,
+  item_status ENUM('pending','processing','shipped','delivered','cancelled') NOT NULL DEFAULT 'pending',
   PRIMARY KEY (id),
   KEY idx_order_items_order (order_id),
   KEY idx_order_items_product (product_id),

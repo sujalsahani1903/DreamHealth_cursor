@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { api } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { SkeletonCard, SkeletonText } from "../components/Skeletons";
+import QuantityStepper from "../components/QuantityStepper";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -17,6 +18,9 @@ export default function ProductDetail() {
   const [feedback, setFeedback] = useState("");
   const [orderId, setOrderId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedVariantId, setSelectedVariantId] = useState(null);
+  const [busyCart, setBusyCart] = useState(false);
+  const [busyBuy, setBusyBuy] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -24,18 +28,71 @@ export default function ProductDetail() {
       .then(([pr, rv]) => {
         setP(pr.data);
         setReviews(rv.data);
+        const variants = pr.data?.variants || [];
+        const def = variants.find((v) => v.is_default) || variants[0];
+        setSelectedVariantId(def?.id ?? null);
       })
       .catch(() => toast.error("Could not load product"))
       .finally(() => setLoading(false));
   }, [id]);
 
+  const activeVariant = p?.variants?.find((v) => v.id === selectedVariantId) || p?.variants?.[0];
+  const unitPrice = activeVariant?.selling_price ?? p?.selling_price;
+  const packStock = activeVariant?.stock ?? p?.stock ?? 0;
+
+  const productPath = `/products/${id}`;
+
+  const requireLogin = () => {
+    if (!user) {
+      navigate("/login", { state: { from: productPath } });
+      return false;
+    }
+    return true;
+  };
+
+  const validatePack = () => {
+    if (p?.has_variants && !selectedVariantId) {
+      toast.error("Please select a pack size");
+      return false;
+    }
+    if (packStock < 1) {
+      toast.error("This pack size is out of stock");
+      return false;
+    }
+    return true;
+  };
+
   const addCart = async () => {
-    if (!user) return navigate("/login");
+    if (!requireLogin() || !validatePack()) return;
+    setBusyCart(true);
     try {
-      await api.post("/api/cart/add", { product_id: Number(id), quantity: qty });
+      await api.post("/api/cart/add", {
+        product_id: Number(id),
+        variant_id: selectedVariantId,
+        quantity: qty,
+      });
       toast.success("Added to cart");
     } catch (e) {
       toast.error(e.response?.data?.message || "Failed");
+    } finally {
+      setBusyCart(false);
+    }
+  };
+
+  const buyNow = async () => {
+    if (!requireLogin() || !validatePack()) return;
+    setBusyBuy(true);
+    try {
+      await api.post("/api/cart/buy-now", {
+        product_id: Number(id),
+        variant_id: selectedVariantId,
+        quantity: qty,
+      });
+      navigate("/checkout");
+    } catch (e) {
+      toast.error(e.response?.data?.message || "Could not proceed to checkout");
+    } finally {
+      setBusyBuy(false);
     }
   };
 
@@ -92,22 +149,71 @@ export default function ProductDetail() {
           <h1 className="font-display text-4xl font-bold text-brand-green dark:text-emerald-100">{p.name}</h1>
           <p className="mt-2 text-sm text-brand-gold">★ {Number(p.rating).toFixed(1)} · {p.total_reviews} reviews</p>
           <p className="mt-4 text-lg text-slate-700 dark:text-slate-200">{p.description}</p>
-          <div className="mt-6 text-3xl font-bold text-brand-green">₹{p.selling_price}</div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <input
-              type="number"
-              min={1}
-              value={qty}
-              onChange={(e) => setQty(Number(e.target.value))}
-              className="w-24 rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
-            />
-            <button type="button" onClick={addCart} className="rounded-full bg-brand-green px-6 py-3 text-sm font-bold text-white">
-              Add to cart
+          <div className="mt-6 text-3xl font-bold text-brand-green">₹{Number(unitPrice).toFixed(2)}</div>
+
+          {p.variants?.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Pack size</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {p.variants.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    disabled={v.stock < 1}
+                    onClick={() => setSelectedVariantId(v.id)}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      selectedVariantId === v.id
+                        ? "border-brand-green bg-brand-green text-white"
+                        : "border-slate-200 hover:border-brand-green dark:border-slate-600"
+                    } ${v.stock < 1 ? "cursor-not-allowed opacity-40" : ""}`}
+                  >
+                    {v.label}
+                    <span className="ml-1 text-xs opacity-80">₹{Number(v.selling_price).toFixed(0)}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                {packStock > 0 ? `${packStock} in stock` : "Out of stock for this size"}
+              </p>
+            </div>
+          )}
+
+          <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+            ₹{Number(unitPrice).toFixed(2)} × {qty} ={" "}
+            <span className="font-bold text-brand-green">₹{(Number(unitPrice) * qty).toFixed(2)}</span>
+          </p>
+
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</p>
+            <QuantityStepper value={qty} max={packStock || 999} onChange={setQty} disabled={packStock < 1} />
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={packStock < 1 || busyCart || busyBuy}
+              onClick={addCart}
+              className="rounded-xl border-2 border-brand-green bg-white px-6 py-3.5 text-sm font-bold uppercase tracking-wide text-brand-green transition hover:bg-brand-green/5 disabled:opacity-50 dark:bg-slate-900"
+            >
+              {busyCart ? "Adding…" : "Add to cart"}
             </button>
-            <button type="button" onClick={addWish} className="rounded-full border border-brand-gold px-6 py-3 text-sm font-bold">
-              Wishlist
+            <button
+              type="button"
+              disabled={packStock < 1 || busyCart || busyBuy}
+              onClick={buyNow}
+              className="rounded-xl bg-brand-gold px-6 py-3.5 text-sm font-bold uppercase tracking-wide text-brand-green shadow-md transition hover:brightness-105 disabled:opacity-50"
+            >
+              {busyBuy ? "Please wait…" : "Buy now"}
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={addWish}
+            className="mt-3 text-sm font-semibold text-brand-green hover:underline dark:text-emerald-300"
+          >
+            Add to wishlist
+          </button>
         </div>
       </div>
 

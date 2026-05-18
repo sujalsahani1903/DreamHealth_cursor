@@ -73,6 +73,28 @@ class Product(db.Model):
     featured = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
+    variants = db.relationship(
+        "ProductVariant",
+        backref="product",
+        lazy=True,
+        cascade="all, delete-orphan",
+        order_by="ProductVariant.sort_order",
+    )
+
+
+class ProductVariant(db.Model):
+    __tablename__ = "product_variants"
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    label = db.Column(db.String(50), nullable=False)
+    weight_grams = db.Column(db.Integer)
+    selling_price = db.Column(db.Numeric(12, 2), nullable=False)
+    cost_price = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    stock = db.Column(db.Integer, nullable=False, default=0)
+    is_default = db.Column(db.Boolean, default=False, nullable=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
 
 class Cart(db.Model):
     __tablename__ = "cart"
@@ -80,11 +102,13 @@ class Cart(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    variant_id = db.Column(db.Integer, db.ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
 
     product = db.relationship("Product", backref="cart_entries", lazy=True)
+    variant = db.relationship("ProductVariant", backref="cart_entries", lazy=True)
 
-    __table_args__ = (db.UniqueConstraint("user_id", "product_id", name="uq_cart_user_product"),)
+    __table_args__ = (db.UniqueConstraint("user_id", "variant_id", name="uq_cart_user_variant"),)
 
 
 class Wishlist(db.Model):
@@ -131,10 +155,18 @@ class OrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
+    variant_id = db.Column(db.Integer, db.ForeignKey("product_variants.id"), nullable=True)
+    variant_label = db.Column(db.String(50))
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Numeric(12, 2), nullable=False)
+    item_status = db.Column(
+        db.Enum("pending", "processing", "shipped", "delivered", "cancelled", name="item_status"),
+        nullable=False,
+        default="pending",
+    )
 
     product = db.relationship("Product", backref="order_items", lazy=True)
+    variant = db.relationship("ProductVariant", backref="order_items", lazy=True)
 
 
 class Transaction(db.Model):

@@ -5,37 +5,76 @@ from flask_mail import Message
 from extensions import mail
 
 
-def send_email(subject: str, html_body: str, recipients: list[str]):
+def _send_via_resend(subject: str, html_body: str, recipients: list[str]) -> bool:
+    """Returns True if Resend accepted the send, False otherwise."""
     cfg = current_app.config
-    if cfg.get("RESEND_API_KEY"):
-        r = requests.post(
-            "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {cfg['RESEND_API_KEY']}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "from": cfg.get("MAIL_DEFAULT_SENDER") or "Dream Health <onboarding@resend.dev>",
-                "to": recipients,
-                "subject": subject,
-                "html": html_body,
-            },
-            timeout=20,
-        )
-        if r.status_code >= 400:
-            current_app.logger.error("Resend error: %s %s", r.status_code, r.text)
-            raise RuntimeError("Failed to send email via Resend")
-        return
+    api_key = cfg.get("RESEND_API_KEY")
+    if not api_key:
+        return False
 
+    from_addr = cfg.get("MAIL_DEFAULT_SENDER") or "Dream Health <onboarding@resend.dev>"
+    r = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": from_addr,
+            "to": recipients,
+            "subject": subject,
+            "html": html_body,
+        },
+        timeout=20,
+    )
+    if r.status_code >= 400:
+        current_app.logger.error("Resend error: %s %s", r.status_code, r.text)
+        return False
+    return True
+
+
+def send_email_smtp(subject: str, html_body: str, recipients: list[str]) -> None:
+    cfg = current_app.config
     if not cfg.get("MAIL_USERNAME"):
-        current_app.logger.warning("No RESEND_API_KEY or MAIL_USERNAME — email skipped (dev)")
-        return
+        current_app.logger.warning("SMTP not configured (MAIL_USERNAME missing) — email skipped")
+        raise RuntimeError("Email not configured. Set MAIL_USERNAME and MAIL_PASSWORD in .env")
 
-    msg = Message(subject=subject, recipients=recipients, html=html_body)
+    sender = cfg.get("MAIL_DEFAULT_SENDER") or cfg.get("MAIL_USERNAME")
+    msg = Message(subject=subject, recipients=recipients, html=html_body, sender=sender)
     mail.send(msg)
 
 
-def send_otp_email(to_email: str, otp: str, purpose: str):
+def send_email(subject: str, html_body: str, recipients: list[str]) -> None:
+    """
+    Send email using Resend and/or Gmail SMTP.
+
+    EMAIL_PROVIDER in .env:
+      - smtp   → Gmail/SMTP only (recommended for sending to any user)
+      - resend → Resend only
+      - auto   → try Resend first, then SMTP if Resend fails (default)
+    """
+    cfg = current_app.config
+    provider = (cfg.get("EMAIL_PROVIDER") or "auto").lower().strip()
+
+    if provider == "smtp":
+        send_email_smtp(subject, html_body, recipients)
+        return
+
+    if provider == "resend":
+        if not _send_via_resend(subject, html_body, recipients):
+            raise RuntimeError("Failed to send email via Resend")
+        return
+
+    # auto: Resend then SMTP fallback (fixes Resend test-mode 403 for other recipients)
+    if cfg.get("RESEND_API_KEY"):
+        if _send_via_resend(subject, html_body, recipients):
+            return
+        current_app.logger.warning("Resend failed — falling back to SMTP for %s", recipients)
+
+    send_email_smtp(subject, html_body, recipients)
+
+
+def send_otp_email(to_email: str, otp: str, purpose: str) -> None:
     titles = {
         "signup": "Verify your Dream Health Foods account",
         "login": "Your login verification code",
@@ -56,7 +95,7 @@ def send_otp_email(to_email: str, otp: str, purpose: str):
     send_email(subject, html, [to_email])
 
 
-def send_order_confirmation(to_email: str, name: str, order_id: int, total: str):
+def send_order_confirmation(to_email: str, name: str, order_id: int, total: str) -> None:
     subject = f"Order #{order_id} confirmed — Dream Health Foods"
     html = f"""
     <div style="font-family:Georgia,serif;background:#f6f3ea;padding:24px;">

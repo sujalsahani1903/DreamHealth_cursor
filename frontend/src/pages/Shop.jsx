@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../services/api";
 import { SkeletonCard } from "../components/Skeletons";
+import { formatProductPrice } from "../utils/productPrice";
 
 export default function Shop() {
   const [params, setParams] = useSearchParams();
@@ -137,7 +138,7 @@ export default function Shop() {
                     <img src={p.image} alt="" className="h-44 w-full object-cover" />
                     <div className="p-4">
                       <div className="font-semibold">{p.name}</div>
-                      <div className="mt-1 text-sm text-slate-500">₹{p.selling_price}</div>
+                      <div className="mt-1 text-sm text-slate-500">{formatProductPrice(p)}</div>
                       <div className="mt-1 text-xs text-brand-gold">★ {p.rating?.toFixed?.(1) ?? p.rating}</div>
                     </div>
                   </Link>

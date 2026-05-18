@@ -8,6 +8,7 @@ from middleware.auth import admin_required
 from models import Address, Cart, Order, OrderItem, Product, Transaction, User
 from services.email_service import send_order_confirmation
 from utils.inventory import log_inventory, sync_stock_alert
+from utils.order_helpers import serialize_order_item, sync_order_status
 
 bp = Blueprint("orders", __name__, url_prefix="/api/orders")
 
@@ -39,11 +40,14 @@ def create_order():
     line_items = []
     for c in cart_rows:
         p = c.product
-        if p.stock < c.quantity:
-            return jsonify({"message": f"Insufficient stock for {p.name}"}), 400
-        price = Decimal(str(p.selling_price))
+        v = c.variant
+        if not v:
+            return jsonify({"message": f"Pack size missing for {p.name}"}), 400
+        if v.stock < c.quantity:
+            return jsonify({"message": f"Insufficient stock for {p.name} ({v.label})"}), 400
+        price = Decimal(str(v.selling_price))
         total += price * c.quantity
-        line_items.append((p, c.quantity, price))
+        line_items.append((p, v, c.quantity, price))
 
     order = Order(
         user_id=uid,
@@ -56,8 +60,15 @@ def create_order():
     db.session.add(order)
     db.session.flush()
 
-    for p, qty, price in line_items:
-        oi = OrderItem(order_id=order.id, product_id=p.id, quantity=qty, price=price)
+    for p, v, qty, price in line_items:
+        oi = OrderItem(
+            order_id=order.id,
+            product_id=p.id,
+            variant_id=v.id,
+            variant_label=v.label,
+            quantity=qty,
+            price=price,
+        )
         db.session.add(oi)
 
     db.session.commit()
@@ -76,17 +87,11 @@ def my_orders():
                 "id": o.id,
                 "total_amount": float(o.total_amount),
                 "payment_status": o.payment_status,
+                "payment_method": o.payment_method,
                 "order_status": o.order_status,
                 "created_at": o.created_at.isoformat() if o.created_at else None,
-                "items": [
-                    {
-                        "product_id": i.product_id,
-                        "name": i.product.name,
-                        "quantity": i.quantity,
-                        "price": float(i.price),
-                    }
-                    for i in o.items
-                ],
+                "shipping_address": o.shipping_address,
+                "items": [serialize_order_item(i) for i in o.items],
             }
         )
     return jsonify(out), 200
@@ -115,15 +120,7 @@ def invoice(oid: int):
                 "order_status": o.order_status,
                 "shipping_address": o.shipping_address,
                 "total_amount": float(o.total_amount),
-                "items": [
-                    {
-                        "name": i.product.name,
-                        "quantity": i.quantity,
-                        "unit_price": float(i.price),
-                        "line_total": float(Decimal(i.price) * i.quantity),
-                    }
-                    for i in o.items
-                ],
+                "items": [serialize_order_item(i) for i in o.items],
             },
             "customer": {"name": user.name, "email": user.email, "phone": user.phone},
         }
@@ -146,42 +143,92 @@ def all_orders():
                 "payment_status": o.payment_status,
                 "order_status": o.order_status,
                 "created_at": o.created_at.isoformat() if o.created_at else None,
+                "shipping_address": o.shipping_address,
+                "items": [serialize_order_item(i) for i in o.items],
             }
         )
     return jsonify(out), 200
 
 
-def fulfill_paid_order(order_id: int, session):
-    """Called from Stripe webhook."""
-    order = Order.query.get(order_id)
-    if not order or order.payment_status == "paid":
-        return
-    order.payment_status = "paid"
-    order.order_status = "processing"
-    order.stripe_session_id = session.get("id")
-    user = User.query.get(order.user_id)
-
-    amount_total = session.get("amount_total", 0) or 0
-    tr = Transaction(
-        order_id=order.id,
-        stripe_payment_intent=session.get("payment_intent"),
-        stripe_charge_id=None,
-        receipt_url=None,
-        amount=Decimal(str(amount_total)) / Decimal("100") if amount_total else order.total_amount,
-        payment_status="paid",
-    )
-    db.session.add(tr)
+def _deduct_stock_and_clear_cart(order: Order) -> None:
+    from utils.variants import sync_product_aggregate
 
     for item in order.items:
         p = item.product
-        prev = p.stock
-        p.stock = prev - item.quantity
-        log_inventory(p.id, "sale", item.quantity, prev, p.stock)
+        v = item.variant
+        if v:
+            prev = v.stock
+            v.stock = prev - item.quantity
+            sync_product_aggregate(p)
+            log_inventory(p.id, "sale", item.quantity, prev, v.stock)
+        else:
+            prev = p.stock
+            p.stock = prev - item.quantity
+            log_inventory(p.id, "sale", item.quantity, prev, p.stock)
         sync_stock_alert(p)
-
     Cart.query.filter_by(user_id=order.user_id).delete()
+
+
+def fulfill_order(order_id: int, *, payment_method: str, mark_paid: bool, stripe_session=None):
+    """Confirm order: update payment, stock, cart, and notify customer."""
+    order = Order.query.get(order_id)
+    if not order:
+        return None
+    if order.payment_status == "paid":
+        return order
+    if order.order_status != "pending":
+        return order
+
+    order.payment_method = payment_method
+    order.order_status = "processing"
+    if mark_paid:
+        order.payment_status = "paid"
+    elif payment_method == "cod":
+        order.payment_status = "pending"
+    else:
+        order.payment_status = "pending"
+
+    if stripe_session:
+        order.stripe_session_id = stripe_session.get("id")
+
+    for item in order.items:
+        if item.item_status == "pending":
+            item.item_status = "processing"
+
+    if mark_paid and stripe_session is not None:
+        amount_total = stripe_session.get("amount_total", 0) or 0
+        tr = Transaction(
+            order_id=order.id,
+            stripe_payment_intent=stripe_session.get("payment_intent"),
+            stripe_charge_id=None,
+            receipt_url=None,
+            amount=Decimal(str(amount_total)) / Decimal("100") if amount_total else order.total_amount,
+            payment_status="paid",
+        )
+        db.session.add(tr)
+    elif payment_method == "cod":
+        tr = Transaction(
+            order_id=order.id,
+            stripe_payment_intent=None,
+            stripe_charge_id=None,
+            receipt_url=None,
+            amount=order.total_amount,
+            payment_status="cod_pending",
+        )
+        db.session.add(tr)
+
+    _deduct_stock_and_clear_cart(order)
     db.session.commit()
-    try:
-        send_order_confirmation(user.email, user.name, order.id, str(order.total_amount))
-    except Exception as exc:  # noqa: BLE001
-        current_app.logger.exception(exc)
+
+    user = User.query.get(order.user_id)
+    if user:
+        try:
+            send_order_confirmation(user.email, user.name, order.id, str(order.total_amount))
+        except Exception as exc:  # noqa: BLE001
+            current_app.logger.exception(exc)
+    return order
+
+
+def fulfill_paid_order(order_id: int, session):
+    """Called from Stripe webhook."""
+    fulfill_order(order_id, payment_method="stripe", mark_paid=True, stripe_session=session)

@@ -9,6 +9,7 @@ from sqlalchemy import func
 from extensions import db
 from middleware.auth import admin_required
 from models import Order, OrderItem, Product, Review, Supplier, User
+from utils.order_helpers import ITEM_STATUSES, serialize_order_item, sync_order_status
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
@@ -77,21 +78,61 @@ def admin_orders():
     rows = Order.query.order_by(Order.created_at.desc()).limit(500).all()
     out = []
     for o in rows:
+        u = o.user
         out.append(
             {
                 "id": o.id,
-                "user": {"id": o.user.id, "name": o.user.name, "email": o.user.email},
+                "user": {
+                    "id": u.id,
+                    "name": u.name,
+                    "email": u.email,
+                    "phone": u.phone,
+                },
                 "total_amount": float(o.total_amount),
                 "payment_status": o.payment_status,
+                "payment_method": o.payment_method,
                 "order_status": o.order_status,
+                "shipping_address": o.shipping_address,
                 "created_at": o.created_at.isoformat() if o.created_at else None,
-                "items": [
-                    {"product_id": i.product_id, "name": i.product.name, "quantity": i.quantity, "price": float(i.price)}
-                    for i in o.items
-                ],
+                "items": [serialize_order_item(i) for i in o.items],
             }
         )
     return jsonify(out), 200
+
+
+@bp.put("/order-items/<int:item_id>/status")
+@jwt_required()
+@admin_required
+def update_order_item_status(item_id: int):
+    item = OrderItem.query.get(item_id)
+    if not item:
+        return jsonify({"message": "Line item not found"}), 404
+    status = (request.get_json() or {}).get("item_status")
+    if status not in ITEM_STATUSES:
+        return jsonify({"message": "Invalid item_status"}), 400
+    item.item_status = status
+    order = item.order
+    sync_order_status(order)
+    db.session.commit()
+    return jsonify(
+        {
+            "message": "Line item updated",
+            "item": serialize_order_item(item),
+            "order_status": order.order_status,
+        }
+    ), 200
+
+
+@bp.put("/orders/<int:oid>/mark-paid")
+@jwt_required()
+@admin_required
+def mark_order_paid(oid: int):
+    o = Order.query.get(oid)
+    if not o:
+        return jsonify({"message": "Not found"}), 404
+    o.payment_status = "paid"
+    db.session.commit()
+    return jsonify({"message": "Payment marked received", "payment_status": o.payment_status}), 200
 
 
 @bp.put("/orders/<int:oid>/status")
@@ -105,6 +146,11 @@ def update_order_status(oid: int):
     if status not in ("pending", "processing", "shipped", "delivered", "cancelled"):
         return jsonify({"message": "Invalid status"}), 400
     o.order_status = status
+    for item in o.items:
+        if status == "cancelled":
+            item.item_status = "cancelled"
+        elif status in ITEM_STATUSES:
+            item.item_status = status
     db.session.commit()
     return jsonify({"message": "Updated", "order_status": o.order_status}), 200
 

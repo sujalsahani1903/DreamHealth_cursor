@@ -2,6 +2,25 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { api } from "../../services/api";
 
+const PACK_PRESETS = [
+  { label: "250g", weight_grams: 250 },
+  { label: "500g", weight_grams: 500 },
+  { label: "1kg", weight_grams: 1000 },
+  { label: "2kg", weight_grams: 2000 },
+  { label: "5kg", weight_grams: 5000 },
+];
+
+const emptyVariant = (label, weight_grams, sort_order, is_default = false) => ({
+  id: null,
+  label,
+  weight_grams,
+  selling_price: "",
+  cost_price: "",
+  stock: "",
+  is_default,
+  sort_order,
+});
+
 const emptyForm = () => ({
   category_id: "",
   name: "",
@@ -30,6 +49,9 @@ export default function AdminProductPanel({ onCatalogChange }) {
   const [form, setForm] = useState(emptyForm);
   const [deleteId, setDeleteId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [useNewCategory, setUseNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [variants, setVariants] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,7 +76,40 @@ export default function AdminProductPanel({ onCatalogChange }) {
   const openAdd = () => {
     setEditingId(null);
     setForm(emptyForm());
+    setUseNewCategory(false);
+    setNewCategoryName("");
+    setVariants([]);
     setModalOpen(true);
+  };
+
+  const addPackPreset = (preset) => {
+    if (variants.some((v) => v.label === preset.label)) {
+      toast.error(`${preset.label} already added`);
+      return;
+    }
+    setVariants((prev) => [
+      ...prev,
+      emptyVariant(preset.label, preset.weight_grams, prev.length + 1, prev.length === 0),
+    ]);
+  };
+
+  const updateVariant = (index, field, value) => {
+    setVariants((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      if (field === "is_default" && value) {
+        return next.map((v, i) => ({ ...v, is_default: i === index }));
+      }
+      return next;
+    });
+  };
+
+  const removeVariant = (index) => {
+    setVariants((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length && !next.some((v) => v.is_default)) next[0].is_default = true;
+      return next;
+    });
   };
 
   const openEdit = async (id) => {
@@ -72,34 +127,102 @@ export default function AdminProductPanel({ onCatalogChange }) {
         image: data.image || "",
         featured: Boolean(data.featured),
       });
+      setUseNewCategory(false);
+      setNewCategoryName("");
+      setVariants(
+        (data.variants || []).map((v) => ({
+          id: v.id,
+          label: v.label,
+          weight_grams: v.weight_grams,
+          selling_price: String(v.selling_price),
+          cost_price: String(v.cost_price ?? ""),
+          stock: String(v.stock),
+          is_default: Boolean(v.is_default),
+          sort_order: v.sort_order,
+        }))
+      );
       setModalOpen(true);
     } catch {
       toast.error("Could not load product");
     }
   };
 
+  const resolveCategoryId = async () => {
+    if (useNewCategory) {
+      const name = newCategoryName.trim();
+      if (!name) {
+        toast.error("Enter a category name");
+        return null;
+      }
+      try {
+        const { data } = await api.post("/api/categories", { name });
+        setCategories((prev) => {
+          if (prev.some((c) => c.id === data.id)) return prev;
+          return [...prev, data].sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setForm((f) => ({ ...f, category_id: String(data.id) }));
+        setUseNewCategory(false);
+        setNewCategoryName("");
+        return data.id;
+      } catch (err) {
+        toast.error(err.response?.data?.message || "Could not create category");
+        return null;
+      }
+    }
+    if (!form.category_id) {
+      toast.error("Select or create a category");
+      return null;
+    }
+    return Number(form.category_id);
+  };
+
   const save = async (e) => {
     e.preventDefault();
-    if (!form.category_id || !form.name.trim()) {
-      toast.error("Category and name are required");
-      return;
-    }
-    const payload = {
-      category_id: Number(form.category_id),
-      name: form.name.trim(),
-      description: (form.description || "").trim() || "—",
-      price: Number(form.price || form.selling_price || 0),
-      stock: Number(form.stock || 0),
-      cost_price: Number(form.cost_price || 0),
-      selling_price: Number(form.selling_price || 0),
-      image: form.image.trim() || null,
-      featured: Boolean(form.featured),
-    };
-    if (payload.selling_price <= 0) {
-      toast.error("Selling price must be greater than 0");
+    if (!form.name.trim()) {
+      toast.error("Product name is required");
       return;
     }
     setSaving(true);
+    const categoryId = await resolveCategoryId();
+    if (!categoryId) {
+      setSaving(false);
+      return;
+    }
+    const builtVariants = variants
+      .filter((v) => v.label?.trim() && Number(v.selling_price) > 0)
+      .map((v, i) => ({
+        id: v.id || undefined,
+        label: v.label.trim(),
+        weight_grams: v.weight_grams || null,
+        selling_price: Number(v.selling_price),
+        cost_price: Number(v.cost_price || form.cost_price || 0),
+        stock: Number(v.stock || 0),
+        is_default: Boolean(v.is_default),
+        sort_order: i + 1,
+      }));
+
+    const defaultVariant = builtVariants.find((v) => v.is_default) || builtVariants[0];
+
+    const payload = {
+      category_id: categoryId,
+      name: form.name.trim(),
+      description: (form.description || "").trim() || "—",
+      price: Number(form.price || defaultVariant?.selling_price || form.selling_price || 0),
+      stock: builtVariants.length
+        ? builtVariants.reduce((s, v) => s + v.stock, 0)
+        : Number(form.stock || 0),
+      cost_price: Number(defaultVariant?.cost_price || form.cost_price || 0),
+      selling_price: Number(defaultVariant?.selling_price || form.selling_price || 0),
+      image: form.image.trim() || null,
+      featured: Boolean(form.featured),
+      variants: builtVariants,
+    };
+
+    if (payload.selling_price <= 0) {
+      toast.error("Add at least one pack size with a selling price, or set a base selling price");
+      setSaving(false);
+      return;
+    }
     try {
       if (editingId) {
         await api.put(`/api/products/${editingId}`, payload);
@@ -226,22 +349,117 @@ export default function AdminProductPanel({ onCatalogChange }) {
               {editingId ? "Edit product" : "New product"}
             </h3>
             <form onSubmit={save} className="mt-4 space-y-3">
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
-                Category
-                <select
-                  required
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
-                  value={form.category_id}
-                  onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                >
-                  <option value="">Select…</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Category</span>
+                  <button
+                    type="button"
+                    className="text-xs font-bold text-brand-green hover:underline"
+                    onClick={() => {
+                      setUseNewCategory((v) => !v);
+                      setNewCategoryName("");
+                    }}
+                  >
+                    {useNewCategory ? "Use existing category" : "+ New category"}
+                  </button>
+                </div>
+                {useNewCategory ? (
+                  <input
+                    required
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                    placeholder="e.g. Millets, Atta, Sattu"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                  />
+                ) : (
+                  <select
+                    required
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                    value={form.category_id}
+                    onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                  >
+                    <option value="">Select…</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-brand-green dark:text-emerald-200">Pack sizes (250g – 5kg)</span>
+                  <div className="flex flex-wrap gap-1">
+                    {PACK_PRESETS.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => addPackPreset(preset)}
+                        className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-bold hover:bg-slate-50 dark:border-slate-600"
+                      >
+                        + {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {variants.length === 0 ? (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Add pack sizes above, or leave empty to create a single 1 kg pack from base price/stock below.
+                  </p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {variants.map((v, i) => (
+                      <div
+                        key={`${v.label}-${i}`}
+                        className="grid gap-2 rounded-lg bg-slate-50 p-2 text-xs dark:bg-slate-800/50 sm:grid-cols-6"
+                      >
+                        <div className="font-bold sm:col-span-1">{v.label}</div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Sell ₹"
+                          className="rounded-lg border px-2 py-1 dark:border-slate-600 dark:bg-slate-900"
+                          value={v.selling_price}
+                          onChange={(e) => updateVariant(i, "selling_price", e.target.value)}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Cost ₹"
+                          className="rounded-lg border px-2 py-1 dark:border-slate-600 dark:bg-slate-900"
+                          value={v.cost_price}
+                          onChange={(e) => updateVariant(i, "cost_price", e.target.value)}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Stock"
+                          className="rounded-lg border px-2 py-1 dark:border-slate-600 dark:bg-slate-900"
+                          value={v.stock}
+                          onChange={(e) => updateVariant(i, "stock", e.target.value)}
+                        />
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name="default_pack"
+                            checked={v.is_default}
+                            onChange={() => updateVariant(i, "is_default", true)}
+                          />
+                          Default
+                        </label>
+                        <button type="button" className="text-red-600 font-bold" onClick={() => removeVariant(i)}>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <label className="block text-xs font-semibold">
                 Name
                 <input

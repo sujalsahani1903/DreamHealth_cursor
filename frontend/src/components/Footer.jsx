@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { WHATSAPP_MESSAGES, whatsappUrl } from "../config/contact";
 
 export default function Footer() {
   return (
@@ -18,6 +19,14 @@ export default function Footer() {
           <div className="font-semibold text-brand-gold">Call</div>
           <p className="mt-2 text-sm">+91 7719180111</p>
           <p className="text-sm">9907278300</p>
+          <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm">
+            <a className="underline hover:text-brand-gold" href={whatsappUrl(WHATSAPP_MESSAGES.order)} target="_blank" rel="noopener noreferrer">
+              WhatsApp — order
+            </a>
+            <a className="underline hover:text-brand-gold" href={whatsappUrl(WHATSAPP_MESSAGES.enquiry)} target="_blank" rel="noopener noreferrer">
+              WhatsApp — enquiry
+            </a>
+          </p>
           <a className="mt-3 inline-block text-sm underline" href="https://www.youtube.com" target="_blank" rel="noreferrer">
             YouTube
           </a>

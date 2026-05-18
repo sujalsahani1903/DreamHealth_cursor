@@ -8,7 +8,9 @@ from sqlalchemy.exc import IntegrityError
 from extensions import db
 from middleware.auth import admin_required
 from models import Product, User
+from models import ProductVariant
 from utils.serializers import calc_profit_margin, product_to_dict
+from utils.variants import sync_product_aggregate, upsert_product_variants
 
 bp = Blueprint("products", __name__, url_prefix="/api/products")
 
@@ -142,6 +144,25 @@ def create_product():
         featured=bool(data.get("featured")),
     )
     db.session.add(p)
+    db.session.flush()
+
+    variants_data = data.get("variants")
+    if variants_data:
+        upsert_product_variants(p, variants_data)
+    else:
+        default = ProductVariant(
+            product_id=p.id,
+            label="1 kg",
+            weight_grams=1000,
+            selling_price=sell,
+            cost_price=cost,
+            stock=int(data["stock"]),
+            is_default=True,
+            sort_order=1,
+        )
+        db.session.add(default)
+
+    sync_product_aggregate(p)
     db.session.commit()
     return jsonify(product_to_dict(p, include_cost=True)), 201
 
@@ -177,6 +198,11 @@ def update_product(pid: int):
     if "total_reviews" in data:
         p.total_reviews = int(data["total_reviews"])
     p.profit_margin = calc_profit_margin(Decimal(str(p.cost_price)), Decimal(str(p.selling_price)))
+
+    if "variants" in data:
+        upsert_product_variants(p, data.get("variants") or [])
+        sync_product_aggregate(p)
+
     db.session.commit()
     return jsonify(product_to_dict(p, include_cost=True)), 200
 
