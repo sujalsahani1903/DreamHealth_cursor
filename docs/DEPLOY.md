@@ -44,10 +44,16 @@ Order: **MySQL (Railway) → API (Vercel) → frontend (Render)**. Frontend buil
 - Build: `npm ci && npm run build`
 - Publish directory: `dist` (not `frontend/dist` if root is already `frontend`)
 
-**If you see 404 on `/assets/*.js` or “Failed to fetch dynamically imported module”:**
-1. Render → your static site → **Manual Deploy** → check **Clear build cache**
-2. After deploy, open site in **incognito** (old `index-*.js` in cache pointed at deleted chunks)
-3. In browser DevTools → Network, click a 404 `.js` URL — if the response is HTML, the SPA rewrite is wrong; if true 404, the `dist/assets` folder was not fully published (re-check publish path)
+**CSS MIME type `text/plain` or chunk 404s:**
+- Cause: too many SPA rewrites (`render.yaml` routes + `_redirects` + dashboard) — `/assets/*` gets `index.html` or plain text instead of real files.
+- Fix: remove extra rewrites; keep **only one** in Render dashboard: `/*` → `/index.html` (Rewrite). **Clear build cache** → redeploy → test in incognito.
+- Service type must be **Static Site**, publish path `dist`, root `frontend`.
+
+**API `ERR_CONNECTION_TIMED_OUT` to Vercel:**
+- Open `https://dream-health-cursor.vercel.app/health` in the browser (use your real Vercel URL).
+- Railway MySQL → enable **Public networking** / TCP proxy so Vercel can reach it (private-only DB = timeout).
+- On Render frontend, set `VITE_API_URL` to the Vercel URL and **rebuild** (env is baked in at build time).
+- If Vercel stays slow or times out, host API on **Render Web Service** with `gunicorn app:app` (see `backend/Procfile`) instead of Vercel.
 
 ## 4. Wire CORS
 

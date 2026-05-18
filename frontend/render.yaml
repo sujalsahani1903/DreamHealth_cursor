@@ -1,4 +1,4 @@
-# Repo root must be `frontend` OR set rootDir below at repo root blueprint
+# Static site — root directory must be `frontend` in Render dashboard
 services:
   - type: web
     name: dream-health-ui
@@ -6,13 +6,18 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     headers:
+      - path: /assets/*.css
+        name: Content-Type
+        value: text/css; charset=utf-8
+      - path: /assets/*.js
+        name: Content-Type
+        value: application/javascript; charset=utf-8
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
       - path: /index.html
         name: Cache-Control
         value: no-cache, no-store, must-revalidate
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    # SPA fallback: add ONE rewrite in Render dashboard (not here + _redirects):
+    #   Source /*  →  /index.html  (Rewrite)
+    # Do NOT stack yaml routes + _redirects — that breaks /assets/* MIME types.
