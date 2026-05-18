@@ -6,12 +6,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _normalize_db_url(url):
+    """Railway/Vercel often give mysql:// — we only ship PyMySQL, not MySQLdb."""
+    if not url:
+        return "mysql+pymysql://root:password@127.0.0.1:3306/dream_health_foods"
+    if url.startswith("mysql://"):
+        return "mysql+pymysql://" + url[len("mysql://") :]
+    if url.startswith("mysql+mysqldb://"):
+        return "mysql+pymysql://" + url[len("mysql+mysqldb://") :]
+    return url
+
+
 class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change")
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL",
-        "mysql+pymysql://root:password@127.0.0.1:3306/dream_health_foods",
-    )
+    SQLALCHEMY_DATABASE_URI = _normalize_db_url(os.getenv("DATABASE_URL"))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
 

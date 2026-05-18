@@ -20,6 +20,7 @@ Order: **MySQL (Railway) → API (Vercel) → frontend (Render)**. Frontend buil
 
 - Import repo, **root directory:** `backend`
 - Env: `DATABASE_URL`, `SECRET_KEY`, `JWT_SECRET_KEY`, `FLASK_ENV=production`, Stripe keys, `ALLOW_PUBLIC_ADMIN=false`
+- `DATABASE_URL` must reach MySQL — `mysql://...` from Railway is OK (app rewrites to `mysql+pymysql`). URL-encode `@` in passwords as `%40`.
 - Set `FRONTEND_URL` after step 3
 - Test: `/health`
 - Stripe webhook: `https://YOUR-API.vercel.app/api/payment/webhook` → `checkout.session.completed`
