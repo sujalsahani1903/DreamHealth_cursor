@@ -61,8 +61,7 @@ def create_app(config_name=None):
 
     @app.cli.command("init-db")
     def init_db():
-        """Create tables from models (dev convenience). Production: use schema.sql."""
-        db.create_all()
+        db.create_all()  # dev only — use database/schema.sql for real setup
         print("Tables ensured.")
 
     return app

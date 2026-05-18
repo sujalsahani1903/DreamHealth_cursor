@@ -104,7 +104,7 @@ def payment_methods():
             {
                 "id": "stripe",
                 "label": "Pay online",
-                "description": "Card, UPI & more via secure Stripe checkout",
+                "description": "Stripe checkout",
             },
         )
     return jsonify(methods), 200
@@ -112,6 +112,7 @@ def payment_methods():
 
 @bp.post("/webhook")
 def webhook_received():
+    # TODO: idempotency key so stripe retries don't double-fulfill
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get("Stripe-Signature", "")
     wh_secret = current_app.config.get("STRIPE_WEBHOOK_SECRET")

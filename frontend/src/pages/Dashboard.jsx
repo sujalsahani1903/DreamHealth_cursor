@@ -8,7 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import OrderLineItems from "../components/orders/OrderLineItems";
 import OrderStatusBadge from "../components/orders/OrderStatusBadge";
-import { paymentMethodLabel, paymentStatusLabel } from "../utils/paymentLabels";
+import { paymentMethodLabel, paymentStatusLabel } from "../utils/payments";
 
 export default function Dashboard() {
   const { pathname } = useLocation();

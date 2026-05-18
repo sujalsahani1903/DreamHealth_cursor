@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { SkeletonCard } from "../components/Skeletons";
-import { formatProductPrice } from "../utils/productPrice";
+import { formatProductPrice } from "../utils/price";
 
 export default function Home() {
   const [featured, setFeatured] = useState([]);
@@ -20,7 +20,7 @@ export default function Home() {
   return (
     <>
       <Helmet>
-        <title>Dream Health Foods — Premium Healthy Grains</title>
+        <title>Dream Health Foods</title>
       </Helmet>
       <section className="relative overflow-hidden bg-gradient-to-br from-brand-cream via-white to-emerald-50 dark:from-slate-950 dark:via-slate-950 dark:to-emerald-950">
         <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand-gold/20 blur-3xl" />
@@ -28,7 +28,7 @@ export default function Home() {
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 rounded-full border border-brand-green/20 bg-white/70 px-3 py-1 text-xs font-semibold text-brand-green shadow-sm dark:bg-slate-900/70">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" /> 100% natural · Premium milling
+              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Siliguri · grains & atta
             </div>
             <h1 className="mt-4 font-display text-4xl font-bold leading-tight text-brand-green md:text-5xl dark:text-emerald-100">
               Blended with Purity, Served with Trust.
@@ -59,7 +59,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-center text-xs text-slate-500">Trusted nutrition for Indian kitchens.</p>
+            <p className="mt-4 text-center text-xs text-slate-500">Atta, millets, sattu, mixes.</p>
           </motion.div>
         </div>
       </section>
@@ -68,7 +68,7 @@ export default function Home() {
         <div className="flex items-end justify-between gap-4">
           <div>
             <h2 className="font-display text-3xl font-bold text-brand-green dark:text-emerald-100">Featured picks</h2>
-            <p className="text-slate-600 dark:text-slate-300">Customer favourites with glowing reviews.</p>
+            <p className="text-slate-600 dark:text-slate-300">A few items from the catalog.</p>
           </div>
           <Link to="/shop" className="text-sm font-semibold text-brand-gold">
             View all →

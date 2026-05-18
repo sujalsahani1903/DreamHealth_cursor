@@ -1,5 +1,4 @@
-import { Link } from "react-router-dom";
-import { WHATSAPP_MESSAGES, whatsappUrl } from "../config/contact";
+﻿import { waLink, waPrefill } from "../config/contact";
 
 export default function Footer() {
   return (
@@ -7,33 +6,29 @@ export default function Footer() {
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 md:grid-cols-3">
         <div>
           <div className="font-display text-xl font-bold text-brand-gold">Dream Health Foods</div>
-          <p className="mt-2 text-sm text-emerald-100">Premium grains, atta, millets, sattu and customised nutrition mixes.</p>
+          <p className="mt-2 text-sm text-emerald-100">Grains, atta, millets, sattu — Siliguri.</p>
         </div>
         <div>
-          <div className="font-semibold text-brand-gold">Visit</div>
+          <div className="font-semibold text-brand-gold">Address</div>
           <p className="mt-2 text-sm">
             Eastern By Pass, Bangla Bazar, Beside Bhaktinagar P.S., Siliguri-734001
           </p>
         </div>
         <div>
-          <div className="font-semibold text-brand-gold">Call</div>
-          <p className="mt-2 text-sm">+91 7719180111</p>
-          <p className="text-sm">9907278300</p>
-          <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm">
-            <a className="underline hover:text-brand-gold" href={whatsappUrl(WHATSAPP_MESSAGES.order)} target="_blank" rel="noopener noreferrer">
-              WhatsApp — order
+          <div className="font-semibold text-brand-gold">Phone</div>
+          <p className="mt-2 text-sm">+91 7719180111 · 9907278300</p>
+          <p className="mt-3 flex gap-3 text-sm">
+            <a className="underline hover:text-brand-gold" href={waLink(waPrefill.order)} target="_blank" rel="noopener noreferrer">
+              WA order
             </a>
-            <a className="underline hover:text-brand-gold" href={whatsappUrl(WHATSAPP_MESSAGES.enquiry)} target="_blank" rel="noopener noreferrer">
-              WhatsApp — enquiry
+            <a className="underline hover:text-brand-gold" href={waLink(waPrefill.enquiry)} target="_blank" rel="noopener noreferrer">
+              WA enquiry
             </a>
           </p>
-          <a className="mt-3 inline-block text-sm underline" href="https://www.youtube.com" target="_blank" rel="noreferrer">
-            YouTube
-          </a>
         </div>
       </div>
       <div className="border-t border-emerald-900/40 py-4 text-center text-xs text-emerald-200">
-        © {new Date().getFullYear()} Dream Health Foods. Crafted for healthy families.
+        © {new Date().getFullYear()} Dream Health Foods
       </div>
     </footer>
   );

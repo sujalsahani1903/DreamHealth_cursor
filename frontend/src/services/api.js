@@ -14,6 +14,7 @@ export function clearAuthStorage() {
   window.dispatchEvent(new Event("auth:session-cleared"));
 }
 
+// TODO: httpOnly cookies would be nicer than localStorage for tokens
 let refreshPromise = null;
 
 export async function refreshAccessToken() {
@@ -53,7 +54,7 @@ api.interceptors.response.use(
           return api(original);
         }
       } catch {
-        /* AuthProvider clears session when refresh is truly invalid */
+        // refresh failed — AuthProvider will clear session
       }
     }
     return Promise.reject(error);

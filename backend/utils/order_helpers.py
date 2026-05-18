@@ -25,7 +25,7 @@ def serialize_order_item(item):
 
 
 def sync_order_status(order):
-    """Derive order-level status from line-item statuses."""
+    # roll up line statuses to order.order_status
     items = list(order.items)
     if not items:
         return

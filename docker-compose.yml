@@ -1,26 +1,16 @@
-# Local MySQL only — API and frontend still run on the host.
-# Usage: docker compose up -d
-# Then set backend/.env DATABASE_URL=mysql+pymysql://dream:dream_local@127.0.0.1:3306/dream_health_foods
-
+# optional local mysql — match DATABASE_URL in backend/.env
 services:
   mysql:
     image: mysql:8.0
-    container_name: dream_health_mysql
-    restart: unless-stopped
+    ports:
+      - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root_local
       MYSQL_DATABASE: dream_health_foods
       MYSQL_USER: dream
       MYSQL_PASSWORD: dream_local
-    ports:
-      - "3306:3306"
     volumes:
-      - dream_mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - mysql_data:/var/lib/mysql
 
 volumes:
-  dream_mysql_data:
+  mysql_data:

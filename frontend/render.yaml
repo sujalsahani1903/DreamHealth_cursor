@@ -1,7 +1,7 @@
-# Render Static Site — connect repo, set root directory to `frontend`
+# render static site — root: frontend
 services:
   - type: web
-    name: dream-health-storefront
+    name: dream-health-ui
     runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
@@ -9,6 +9,3 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        sync: false

@@ -1,21 +1,13 @@
 {
   "name": "dream-health-foods",
   "version": "1.0.0",
-  "description": "Dream Health Foods — React storefront for grains, millets, and nutrition products",
-  "author": "Sujal Sahani <sujalsahnai1903@gmail.com>",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/sujalsahani1903/DreamHealth_cursor.git"
-  },
-  "homepage": "https://github.com/sujalsahani1903/DreamHealth_cursor#readme",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext js,jsx"
   },
   "dependencies": {
     "axios": "^1.7.7",

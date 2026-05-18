@@ -8,11 +8,10 @@ export default function About() {
       </Helmet>
       <h1 className="font-display text-4xl font-bold text-brand-green dark:text-emerald-100">Our story</h1>
       <p className="mt-4 text-slate-700 dark:text-slate-200">
-        Dream Health Foods celebrates traditional Indian nutrition with modern quality standards — from stone-ground atta to
-        millet-forward blends and restorative sattu drinks.
+        Dream Health Foods sells atta, millets, sattu and custom mixes. We mill in Siliguri and ship across the region.
       </p>
       <p className="mt-4 text-slate-700 dark:text-slate-200">
-        Based in Siliguri, we source responsibly, mill carefully, and deliver grains that feel as good as they taste.
+        Started as a college project tied to a real family business — the catalog and admin panel are what I built for practice.
       </p>
     </div>
   );

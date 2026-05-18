@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../services/api";
 import { SkeletonCard } from "../components/Skeletons";
-import { formatProductPrice } from "../utils/productPrice";
+import { formatProductPrice } from "../utils/price";
 
 export default function Shop() {
   const [params, setParams] = useSearchParams();

@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { api } from "../../services/api";
 import OrderLineItems from "../orders/OrderLineItems";
 import OrderStatusBadge from "../orders/OrderStatusBadge";
-import { paymentMethodLabel, paymentStatusLabel } from "../../utils/paymentLabels";
+import { paymentMethodLabel, paymentStatusLabel } from "../../utils/payments";
 
 const ITEM_STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
 

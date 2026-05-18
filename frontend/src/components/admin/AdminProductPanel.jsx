@@ -253,6 +253,7 @@ export default function AdminProductPanel({ onCatalogChange }) {
     }
   };
 
+  // TODO: store images on S3 when API is on serverless
   const uploadImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
