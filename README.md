@@ -4,7 +4,7 @@ E-commerce site for a local grains/atta shop (Siliguri). Customers browse produc
 
 **Stack:** React (Vite) + Flask + MySQL  
 
-**Repo:** [github.com/sujalsahani1903/DreamHealth_cursor](https://github.com/sujalsahani1903/DreamHealth)
+**Repo:** [github.com/sujalsahani1903/DreamHealth](https://github.com/sujalsahani1903/DreamHealth)
 
 ---
 
